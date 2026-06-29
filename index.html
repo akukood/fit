@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Beat Last Time</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --border2: #3a3a3a;
+    --text: #f0ede8;
+    --muted: #888;
+    --dim: #555;
+    --accent: #d4f06b;
+    --accent-dark: #1a2600;
+    --accent-text: #1a2600;
+    --danger: #f06b6b;
+    --danger-bg: #2a1010;
+    --radius: 10px;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px; line-height: 1.5; min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── Auth screen ─── */
+  #auth-screen {
+    display: flex; flex-direction: column;
+    min-height: 100vh; padding: 2rem 1.25rem;
+    justify-content: center;
+  }
+  .auth-logo { font-size: 2rem; margin-bottom: 0.5rem; }
+  .auth-title { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.4rem; }
+  .auth-sub { font-size: 13px; color: var(--muted); margin-bottom: 2rem; line-height: 1.6; }
+  .auth-step {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1rem; margin-bottom: 0.75rem;
+  }
+  .auth-step-num {
+    font-size: 11px; font-weight: 700; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem;
+  }
+  .auth-step p { font-size: 13px; color: var(--muted); margin-bottom: 0.6rem; line-height: 1.5; }
+  .auth-step a { color: var(--accent); text-decoration: none; }
+  .auth-step input {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 8px; color: var(--text); font-size: 14px;
+    padding: 0.6rem 0.8rem; outline: none; font-family: var(--mono);
+    -webkit-appearance: none;
+  }
+  .auth-step input:focus { border-color: var(--accent); }
+  .auth-remember { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font-size: 13px; color: var(--muted); }
+  .auth-remember input[type=checkbox] { accent-color: var(--accent); }
+  .auth-error { color: var(--danger); font-size: 13px; margin-top: 0.5rem; display: none; }
+
+  /* ─── Sync status bar ─── */
+  #sync-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.4rem 1rem; font-size: 12px; color: var(--muted);
+    border-bottom: 1px solid var(--border); min-height: 32px;
+  }
+  .sync-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--dim); margin-right: 6px; display: inline-block; flex-shrink: 0;
+  }
+  .sync-dot.ok { background: var(--accent); }
+  .sync-dot.busy { background: #f0b46b; animation: pulse 1s infinite; }
+  .sync-dot.err { background: var(--danger); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  #sync-bar button {
+    background: none; border: none; color: var(--muted); font-size: 12px;
+    cursor: pointer; padding: 0 0.25rem;
+  }
+  #sync-bar button:hover { color: var(--text); }
+
+  /* ─── Layout ─── */
+  #app { display: none; }
+  .header {
+    padding: 0.9rem 1rem 0;
+    display: flex; align-items: baseline; gap: 0.6rem;
+  }
+  .header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
+  .header .tagline { font-size: 12px; color: var(--muted); }
+  .tabs { display: flex; gap: 2px; padding: 0.75rem 1rem 0; }
+  .tab {
+    flex: 1; padding: 0.5rem; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--muted); font-size: 13px; font-weight: 500;
+    text-align: center; cursor: pointer;
+  }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .view { display: none; padding: 1rem; }
+  .view.active { display: block; }
+
+  /* ─── Cards ─── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.75rem; overflow: hidden; }
+  .card-head { padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+  .card-head-left { display: flex; flex-direction: column; gap: 2px; }
+  .card-title { font-weight: 600; font-size: 14px; }
+  .card-date { font-size: 12px; color: var(--muted); }
+  .card-actions { display: flex; gap: 6px; }
+  .exercise-block { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
+  .exercise-block:last-child { border-bottom: none; }
+  .ex-name { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+  .sets-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .set-badge {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 3px 8px; font-size: 13px;
+    font-family: var(--mono); color: var(--text);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .set-badge.pr { border-color: var(--accent); color: var(--accent); }
+  .set-badge .weight-tag { font-size: 10px; color: var(--muted); }
+
+  /* ─── Buttons ─── */
+  .btn {
+    padding: 0.55rem 1rem; border-radius: var(--radius); font-size: 14px;
+    font-weight: 500; cursor: pointer; border: 1px solid var(--border2);
+    background: var(--surface2); color: var(--text);
+    display: inline-flex; align-items: center; gap: 6px; transition: opacity 0.15s;
+  }
+  .btn:active { opacity: 0.7; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 0.4rem 0.5rem; font-size: 18px; }
+  .btn.danger-ghost { background: transparent; border-color: transparent; color: var(--danger); padding: 0.4rem 0.5rem; font-size: 18px; }
+  .btn.full { width: 100%; justify-content: center; }
+  .btn.sm { padding: 0.35rem 0.7rem; font-size: 13px; }
+
+  /* ─── Form ─── */
+  .form-section { margin-bottom: 1rem; }
+  .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+  input[type="date"], input[type="text"], input[type="number"], select, textarea {
+    width: 100%; background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--radius); color: var(--text); font-size: 15px;
+    padding: 0.6rem 0.8rem; outline: none; -webkit-appearance: none; appearance: none;
+    color-scheme: dark; font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input[type="number"] { -moz-appearance: textfield; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  textarea { resize: none; line-height: 1.5; }
+
+  /* ─── Sets grid ─── */
+  .sets-input-header { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; margin-bottom: 4px; }
+  .sets-input-header span { font-size: 11px; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; text-align: center; }
+  .set-input-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; margin-bottom: 6px; align-items: center; }
+  .set-input-row input { text-align: center; padding: 0.5rem 0.3rem; font-family: var(--mono); }
+  .set-num { width: 24px; height: 24px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); font-weight: 600; flex-shrink: 0; margin: 0 auto; }
+
+  /* ─── Last time banner ─── */
+  .last-time-box { background: var(--accent-dark); border: 1px solid #3d5200; border-radius: 8px; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; font-size: 12px; color: #a8cc4a; }
+  .last-time-box strong { color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 3px; }
+  .last-time-sets { font-family: var(--mono); color: var(--accent); }
+
+  /* ─── Exercise form block ─── */
+  .ex-form-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; margin-bottom: 0.75rem; }
+  .ex-form-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 0.5rem; }
+  .ex-form-subtitle { font-size: 11px; color: var(--dim); margin-bottom: 0.75rem; line-height: 1.4; }
+
+  /* ─── Empty state ─── */
+  .empty { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+  .empty .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .empty p { font-size: 14px; margin-bottom: 1.25rem; }
+
+  /* ─── Stats ─── */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 1rem; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .stat-value { font-size: 1.6rem; font-weight: 700; color: var(--accent); letter-spacing: -0.02em; }
+
+  /* ─── Trend bars ─── */
+  .trend-row { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
+  .trend-row:last-child { border-bottom: none; }
+  .trend-meta { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+  .trend-name { font-weight: 600; }
+  .trend-delta { color: var(--accent); font-family: var(--mono); }
+  .trend-delta.down { color: var(--danger); }
+  .trend-bar-wrap { height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  .trend-bar { height: 100%; background: var(--accent); border-radius: 2px; }
+
+  /* ─── Modal ─── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: flex-end; }
+  .modal-overlay.open { display: flex; }
+  .modal { width: 100%; max-height: 92vh; background: var(--bg); border-radius: 18px 18px 0 0; border-top: 1px solid var(--border2); overflow-y: auto; padding: 1rem; }
+  .modal-handle { width: 36px; height: 4px; background: var(--border2); border-radius: 2px; margin: 0 auto 1rem; }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 1rem; }
+
+  /* ─── Confirm ─── */
+  .confirm-box { display: none; background: var(--danger-bg); border: 1px solid var(--danger); border-radius: var(--radius); padding: 0.75rem; margin-top: 0.5rem; font-size: 13px; }
+  .confirm-box.open { display: block; }
+  .confirm-actions { display: flex; gap: 8px; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<!-- ═══ AUTH SCREEN ═══ -->
+<div id="auth-screen">
+  <div class="auth-logo">⚡</div>
+  <div class="auth-title">Beat Last Time</div>
+  <div class="auth-sub">Your workout data syncs to GitHub so it's available on any device. You only need to do this once.</div>
+
+  <div class="auth-step">
+    <div class="auth-step-num">Step 1 — Get a token</div>
+    <p>Go to <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens/new</a>, create a classic token with the <strong>repo</strong> scope. Copy it.</p>
+  </div>
+
+  <div class="auth-step">
+    <div class="auth-step-num">Step 2 — Paste it here</div>
+    <p>Your token is sent only to api.github.com — never anywhere else.</p>
+    <input type="password" id="token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+    <div class="auth-remember">
+      <input type="checkbox" id="remember-token" checked>
+      <label for="remember-token">Remember on this device (localStorage)</label>
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+
+  <button class="btn primary full" style="margin-top:0.5rem" onclick="handleAuth()">Connect to GitHub</button>
+  <div style="margin-top:1rem; font-size:12px; color:var(--dim); text-align:center;">
+    Repo: akukood/fit &nbsp;·&nbsp; File: workouts.json
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app">
+  <div id="sync-bar">
+    <div style="display:flex;align-items:center">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span id="sync-label">—</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="syncNow()" title="Sync now">↻ sync</button>
+      <button onclick="signOut()" title="Sign out">sign out</button>
+    </div>
+  </div>
+
+  <div class="header">
+    <h1>⚡ Beat Last Time</h1>
+    <span class="tagline">3×/week</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showView('log')">Log</div>
+    <div class="tab" onclick="showView('history')">History</div>
+    <div class="tab" onclick="showView('progress')">Progress</div>
+  </div>
+
+  <!-- LOG -->
+  <div class="view active" id="view-log">
+    <div class="form-section">
+      <label class="form-label">Date</label>
+      <input type="date" id="log-date">
+    </div>
+    <div class="ex-form-block">
+      <div class="ex-form-title">1. Pull — Negative Pull-Ups</div>
+      <div class="ex-form-subtitle">Jump up, chin over bar. Lower in 3–5 sec. Each slow descent = 1 rep.</div>
+      <div id="last-pullups"></div>
+      <div class="sets-input-header"><span>Set</span><span>Reps</span><span></span><span></span></div>
+      <div id="sets-pullups"></div>
+    </div>
+    <div class="ex-form-block">
+      <div class="ex-form-title">2. Push — Floor Push-Ups</div>
+      <div class="ex-form-subtitle">Stop before form breaks. Leave 1–2 reps in the tank on sets 1 and 2.</div>
+      <div id="last-pushups"></div>
+      <div class="sets-input-header"><span>Set</span><span>Reps</span><span></span><span></span></div>
+      <div id="sets-pushups"></div>
+    </div>
+    <div class="ex-form-block">
+      <div class="ex-form-title">3. Legs — Weighted Goblet Squats</div>
+      <div class="ex-form-subtitle">Hold one heavy dumbbell vertical to chest. Squat deep, chest up. 3 × 12–15.</div>
+      <div id="last-squats"></div>
+      <div class="sets-input-header"><span>Set</span><span>Reps</span><span>kg</span><span></span></div>
+      <div id="sets-squats"></div>
+    </div>
+    <div class="ex-form-block">
+      <div class="ex-form-title">4a. Superset — Calf Raises</div>
+      <div class="ex-form-subtitle">Single-leg on step, heel low → explode up. 3 × 15–20 per leg.</div>
+      <div id="last-calves"></div>
+      <div class="sets-input-header"><span>Set</span><span>Reps</span><span>kg</span><span></span></div>
+      <div id="sets-calves"></div>
+    </div>
+    <div class="ex-form-block">
+      <div class="ex-form-title">4b. Superset — Bicep Curls</div>
+      <div class="ex-form-subtitle">Stand tall, controlled curl. 3 × 10–12. Rest 60 sec after each superset.</div>
+      <div id="last-curls"></div>
+      <div class="sets-input-header"><span>Set</span><span>Reps</span><span>kg</span><span></span></div>
+      <div id="sets-curls"></div>
+    </div>
+    <div class="ex-form-block">
+      <div class="ex-form-title">5. Core — Plank</div>
+      <div class="ex-form-subtitle">Forearm plank, glutes and abs tight. 2 sets for max time.</div>
+      <div id="last-plank"></div>
+      <div class="sets-input-header"><span>Set</span><span>Sec</span><span>note</span><span></span></div>
+      <div id="sets-plank"></div>
+    </div>
+    <div class="form-section">
+      <label class="form-label">Notes (optional)</label>
+      <textarea id="log-notes" rows="2" placeholder="How did it feel?"></textarea>
+    </div>
+    <button class="btn primary full" id="save-btn" onclick="saveWorkout()">Save &amp; sync</button>
+    <div style="height:2rem"></div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="view" id="view-history">
+    <div id="history-list"></div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="view" id="view-progress">
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="card">
+      <div class="card-head" style="border-bottom:none">
+        <div class="card-title" style="font-size:13px;color:var(--muted)">Best sets vs. previous workout</div>
+      </div>
+      <div id="trend-list"></div>
+    </div>
+    <div style="height:1rem"></div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Edit workout</div>
+    <div class="form-section">
+      <label class="form-label">Date</label>
+      <input type="date" id="edit-date">
+    </div>
+    <div id="edit-exercises"></div>
+    <div class="form-section">
+      <label class="form-label">Notes</label>
+      <textarea id="edit-notes" rows="2"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:0.5rem">
+      <button class="btn" style="flex:1" onclick="closeEditModal()">Cancel</button>
+      <button class="btn primary" style="flex:2" onclick="saveEdit()">Save &amp; sync</button>
+    </div>
+    <div style="height:1rem"></div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────────
+const OWNER = 'akukood';
+const REPO  = 'fit';
+const FILE  = 'workouts.json';
+const API   = 'https://api.github.com';
+
+const EXERCISES = [
+  { id: 'pullups', name: 'Negative Pull-Ups',  sets: 3, unit: 'reps', hasWeight: false },
+  { id: 'pushups', name: 'Floor Push-Ups',     sets: 3, unit: 'reps', hasWeight: false },
+  { id: 'squats',  name: 'Goblet Squats',      sets: 3, unit: 'reps', hasWeight: true  },
+  { id: 'calves',  name: 'Calf Raises',        sets: 3, unit: 'reps', hasWeight: true  },
+  { id: 'curls',   name: 'Bicep Curls',        sets: 3, unit: 'reps', hasWeight: true  },
+  { id: 'plank',   name: 'Plank',              sets: 2, unit: 'sec',  hasWeight: false },
+];
+
+// ─────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────
+let ghToken = '';
+let fileSHA = '';       // needed to update the file on GitHub
+let workouts = [];
+let editingId = null;
+
+// ─────────────────────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────────────────────
+function getStoredToken() {
+  return localStorage.getItem('blt_gh_token') || sessionStorage.getItem('blt_gh_token') || '';
+}
+
+async function handleAuth() {
+  const val = document.getElementById('token-input').value.trim();
+  if (!val) { showAuthError('Paste your token first.'); return; }
+  const remember = document.getElementById('remember-token').checked;
+  ghToken = val;
+  setSyncState('busy', 'Connecting…');
+  const ok = await fetchWorkouts();
+  if (!ok) { ghToken = ''; return; }
+  if (remember) localStorage.setItem('blt_gh_token', val);
+  else sessionStorage.setItem('blt_gh_token', val);
+  showApp();
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function signOut() {
+  localStorage.removeItem('blt_gh_token');
+  sessionStorage.removeItem('blt_gh_token');
+  ghToken = ''; workouts = []; fileSHA = '';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('token-input').value = '';
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  initLogForm();
+  setSyncState('ok', 'Synced');
+}
+
+// ─────────────────────────────────────────────────────────────
+// GITHUB API
+// ─────────────────────────────────────────────────────────────
+function ghHeaders() {
+  return {
+    'Authorization': 'token ' + ghToken,
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+  };
+}
+
+async function fetchWorkouts() {
+  try {
+    const res = await fetch(`${API}/repos/${OWNER}/${REPO}/contents/${FILE}`, { headers: ghHeaders() });
+    if (res.status === 404) {
+      // File doesn't exist yet — that's fine, start fresh
+      fileSHA = '';
+      workouts = [];
+      return true;
+    }
+    if (res.status === 401) { showAuthError('Token rejected. Check it has the repo scope.'); setSyncState('err', 'Auth failed'); return false; }
+    if (!res.ok) { showAuthError('GitHub error ' + res.status); setSyncState('err', 'Error ' + res.status); return false; }
+    const data = await res.json();
+    fileSHA = data.sha;
+    workouts = JSON.parse(atob(data.content.replace(/\n/g, '')));
+    return true;
+  } catch(e) {
+    showAuthError('Network error: ' + e.message);
+    setSyncState('err', 'Network error');
+    return false;
+  }
+}
+
+async function pushWorkouts() {
+  setSyncState('busy', 'Saving…');
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(workouts, null, 2))));
+  const body = { message: 'workout update', content };
+  if (fileSHA) body.sha = fileSHA;
+  try {
+    const res = await fetch(`${API}/repos/${OWNER}/${REPO}/contents/${FILE}`, {
+      method: 'PUT', headers: ghHeaders(), body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      setSyncState('err', 'Save failed: ' + (err.message || res.status));
+      return false;
+    }
+    const data = await res.json();
+    fileSHA = data.content.sha;
+    setSyncState('ok', 'Saved · ' + nowTime());
+    return true;
+  } catch(e) {
+    setSyncState('err', 'Network error');
+    return false;
+  }
+}
+
+async function syncNow() {
+  setSyncState('busy', 'Syncing…');
+  await fetchWorkouts();
+  setSyncState('ok', 'Synced · ' + nowTime());
+  renderHistory();
+  initLogForm();
+}
+
+// ─────────────────────────────────────────────────────────────
+// SYNC BAR
+// ─────────────────────────────────────────────────────────────
+function setSyncState(state, label) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot ' + state;
+  document.getElementById('sync-label').textContent = label;
+}
+
+// ─────────────────────────────────────────────────────────────
+// NAV
+// ─────────────────────────────────────────────────────────────
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  ['log','history','progress'].forEach((n,i) => {
+    if (n === v) document.querySelectorAll('.tab')[i].classList.add('active');
+  });
+  if (v === 'history') renderHistory();
+  if (v === 'progress') renderProgress();
+}
+
+// ─────────────────────────────────────────────────────────────
+// LOG FORM
+// ─────────────────────────────────────────────────────────────
+function initLogForm() {
+  document.getElementById('log-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('log-notes').value = '';
+  const last = workouts.length ? workouts[workouts.length - 1] : null;
+  EXERCISES.forEach(ex => { renderLastTime(ex, last); renderSetsInputs(ex, null); });
+}
+
+function renderLastTime(ex, lastWorkout) {
+  const container = document.getElementById('last-' + ex.id);
+  if (!lastWorkout || !lastWorkout.exercises[ex.id]) { container.innerHTML = ''; return; }
+  const sets = lastWorkout.exercises[ex.id];
+  const setStr = sets.map(s => {
+    let l = s.reps + (ex.unit === 'sec' ? 's' : '');
+    if (s.weight) l += ' @' + s.weight + 'kg';
+    return l;
+  }).join(' · ');
+  container.innerHTML = `<div class="last-time-box"><strong>Last time — ${fmtDate(lastWorkout.date)}</strong><span class="last-time-sets">${setStr}</span></div>`;
+}
+
+function renderSetsInputs(ex, existingData) {
+  const container = document.getElementById('sets-' + ex.id);
+  let html = '';
+  for (let i = 0; i < ex.sets; i++) {
+    const d = existingData ? existingData[i] : null;
+    const repsVal = d ? (d.reps || '') : '';
+    const weightVal = d ? (d.weight || '') : '';
+    const col3 = ex.hasWeight
+      ? `<input type="number" inputmode="decimal" placeholder="kg" value="${weightVal}" id="${ex.id}-weight-${i}">`
+      : ex.unit === 'sec'
+        ? `<input type="text" placeholder="note" value="${weightVal}" id="${ex.id}-weight-${i}">`
+        : `<div></div>`;
+    html += `<div class="set-input-row">
+      <div class="set-num">${i+1}</div>
+      <input type="number" inputmode="numeric" min="0" max="999" placeholder="—" value="${repsVal}" id="${ex.id}-reps-${i}">
+      ${col3}
+      <div></div>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function collectExerciseData(ex, prefix) {
+  prefix = prefix || '';
+  const sets = [];
+  for (let i = 0; i < ex.sets; i++) {
+    const repsEl = document.getElementById(prefix + ex.id + '-reps-' + i);
+    const weightEl = document.getElementById(prefix + ex.id + '-weight-' + i);
+    sets.push({
+      reps: repsEl ? (parseInt(repsEl.value) || 0) : 0,
+      weight: weightEl ? (parseFloat(weightEl.value) || null) : null,
+    });
+  }
+  return sets;
+}
+
+async function saveWorkout() {
+  const date = document.getElementById('log-date').value;
+  if (!date) { alert('Pick a date.'); return; }
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const exercises = {};
+  EXERCISES.forEach(ex => { exercises[ex.id] = collectExerciseData(ex); });
+  const notes = document.getElementById('log-notes').value.trim();
+  workouts.push({ id: Date.now(), date, exercises, notes });
+  workouts.sort((a,b) => a.date.localeCompare(b.date));
+  const ok = await pushWorkouts();
+  btn.disabled = false; btn.textContent = 'Save & sync';
+  if (ok) { initLogForm(); showView('history'); }
+}
+
+// ─────────────────────────────────────────────────────────────
+// HISTORY
+// ─────────────────────────────────────────────────────────────
+function renderHistory() {
+  const container = document.getElementById('history-list');
+  if (!workouts.length) {
+    container.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><p>No workouts yet. Log your first one!</p><button class="btn primary" onclick="showView('log')">Log workout</button></div>`;
+    return;
+  }
+  const sorted = [...workouts].reverse();
+  container.innerHTML = sorted.map((w, idx) => renderWorkoutCard(w, sorted[idx+1] || null)).join('');
+}
+
+function renderWorkoutCard(w, prev) {
+  const exBlocks = EXERCISES.map(ex => {
+    const sets = w.exercises[ex.id] || [];
+    const badges = sets.map((s, i) => {
+      const prevS = prev && prev.exercises[ex.id] ? prev.exercises[ex.id][i] : null;
+      const isPR = prevS && s.reps > prevS.reps;
+      let label = s.reps + (ex.unit === 'sec' ? 's' : '');
+      if (s.weight) label += '<span class="weight-tag"> @' + s.weight + 'kg</span>';
+      return `<div class="set-badge${isPR?' pr':''}">${label}</div>`;
+    }).join('');
+    return `<div class="exercise-block"><div class="ex-name">${ex.name}</div><div class="sets-row">${badges}</div></div>`;
+  }).join('');
+  const notesHtml = w.notes ? `<div style="padding:0.6rem 1rem;font-size:13px;color:var(--muted);border-top:1px solid var(--border)">${w.notes}</div>` : '';
+  const confirmHtml = `<div class="confirm-box" id="confirm-${w.id}">Delete this workout?<div class="confirm-actions"><button class="btn sm" onclick="document.getElementById('confirm-${w.id}').classList.remove('open')">Cancel</button><button class="btn sm" style="border-color:var(--danger);color:var(--danger)" onclick="deleteWorkout(${w.id})">Delete</button></div></div>`;
+  return `<div class="card" id="card-${w.id}">
+    <div class="card-head">
+      <div class="card-head-left"><div class="card-title">${fmtDate(w.date)}</div><div class="card-date">${dowLabel(w.date)}</div></div>
+      <div class="card-actions">
+        <button class="btn ghost" onclick="openEditModal(${w.id})">✏️</button>
+        <button class="btn danger-ghost" onclick="document.getElementById('confirm-${w.id}').classList.toggle('open')">🗑</button>
+      </div>
+    </div>
+    ${exBlocks}${notesHtml}
+    <div style="padding:0 1rem">${confirmHtml}</div>
+  </div>`;
+}
+
+async function deleteWorkout(id) {
+  workouts = workouts.filter(w => w.id !== id);
+  await pushWorkouts();
+  renderHistory();
+}
+
+// ─────────────────────────────────────────────────────────────
+// EDIT
+// ─────────────────────────────────────────────────────────────
+function openEditModal(id) {
+  const w = workouts.find(x => x.id === id);
+  if (!w) return;
+  editingId = id;
+  document.getElementById('edit-date').value = w.date;
+  document.getElementById('edit-notes').value = w.notes || '';
+  const container = document.getElementById('edit-exercises');
+  container.innerHTML = EXERCISES.map(ex => {
+    const sets = w.exercises[ex.id] || [];
+    const col3label = ex.hasWeight ? 'kg' : (ex.unit === 'sec' ? 'note' : '');
+    let inputsHtml = `<div class="sets-input-header"><span>Set</span><span>${ex.unit==='sec'?'Sec':'Reps'}</span><span>${col3label}</span><span></span></div>`;
+    for (let i = 0; i < ex.sets; i++) {
+      const s = sets[i] || { reps: 0, weight: null };
+      const col3 = ex.hasWeight
+        ? `<input type="number" inputmode="decimal" placeholder="kg" value="${s.weight||''}" id="edit-${ex.id}-weight-${i}">`
+        : ex.unit === 'sec'
+          ? `<input type="text" placeholder="note" value="${s.weight||''}" id="edit-${ex.id}-weight-${i}">`
+          : `<div></div>`;
+      inputsHtml += `<div class="set-input-row">
+        <div class="set-num">${i+1}</div>
+        <input type="number" inputmode="numeric" min="0" max="999" value="${s.reps||''}" id="edit-${ex.id}-reps-${i}">
+        ${col3}<div></div>
+      </div>`;
+    }
+    return `<div class="ex-form-block"><div class="ex-form-title">${ex.name}</div>${inputsHtml}</div>`;
+  }).join('');
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+  editingId = null;
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+  const idx = workouts.findIndex(w => w.id === editingId);
+  if (idx === -1) return;
+  workouts[idx].date = document.getElementById('edit-date').value;
+  workouts[idx].notes = document.getElementById('edit-notes').value.trim();
+  EXERCISES.forEach(ex => { workouts[idx].exercises[ex.id] = collectExerciseData(ex, 'edit-'); });
+  workouts.sort((a,b) => a.date.localeCompare(b.date));
+  closeEditModal();
+  await pushWorkouts();
+  renderHistory();
+}
+
+// ─────────────────────────────────────────────────────────────
+// PROGRESS
+// ─────────────────────────────────────────────────────────────
+function renderProgress() {
+  const statsGrid = document.getElementById('stats-grid');
+  const trendList = document.getElementById('trend-list');
+  if (!workouts.length) {
+    statsGrid.innerHTML = '';
+    trendList.innerHTML = '<div style="padding:1rem;color:var(--muted);font-size:13px;text-align:center">Log some workouts to see progress.</div>';
+    return;
+  }
+  statsGrid.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Total sessions</div><div class="stat-value">${workouts.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Day streak</div><div class="stat-value">${calcStreak()}</div></div>
+    <div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Last workout</div><div class="stat-value" style="font-size:1rem;margin-top:2px">${fmtDate(workouts[workouts.length-1].date)}</div></div>`;
+  if (workouts.length < 2) {
+    trendList.innerHTML = '<div style="padding:1rem;color:var(--muted);font-size:13px;text-align:center">Log at least 2 workouts to compare.</div>';
+    return;
+  }
+  const last = workouts[workouts.length-1];
+  const prev = workouts[workouts.length-2];
+  trendList.innerHTML = EXERCISES.map(ex => {
+    const lastBest = Math.max(...(last.exercises[ex.id]||[]).map(s=>s.reps), 0);
+    const prevBest = Math.max(...(prev.exercises[ex.id]||[]).map(s=>s.reps), 0);
+    const delta = lastBest - prevBest;
+    const pct = prevBest > 0 ? Math.min(100, Math.round((lastBest/(prevBest*1.5))*100)) : 50;
+    const unit = ex.unit === 'sec' ? 's' : '';
+    return `<div class="trend-row">
+      <div class="trend-meta"><span class="trend-name">${ex.name}</span><span class="trend-delta${delta<0?' down':''}">${delta>0?'+':''}${delta}${unit}</span></div>
+      <div class="trend-bar-wrap"><div class="trend-bar" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function calcStreak() {
+  if (!workouts.length) return 0;
+  const dates = workouts.map(w=>w.date).sort().reverse();
+  let streak = 0, cursor = new Date().toISOString().slice(0,10);
+  for (const d of dates) {
+    if (d <= cursor) { streak++; cursor = prevDay(d); }
+  }
+  return streak;
+}
+
+// ─────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────
+function fmtDate(s) { return new Date(s+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
+function dowLabel(s) { return new Date(s+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'}); }
+function prevDay(s) { const d=new Date(s+'T12:00:00'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
+function nowTime() { return new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+
+document.getElementById('edit-modal').addEventListener('click', function(e) { if (e.target===this) closeEditModal(); });
+
+// ─────────────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────────────
+(async () => {
+  const stored = getStoredToken();
+  if (stored) {
+    ghToken = stored;
+    setSyncState('busy', 'Connecting…');
+    const ok = await fetchWorkouts();
+    if (ok) { showApp(); return; }
+    // token was bad — fall through to auth screen
+    localStorage.removeItem('blt_gh_token');
+    sessionStorage.removeItem('blt_gh_token');
+    ghToken = '';
+  }
+  document.getElementById('auth-screen').style.display = 'flex';
+})();
+</script>
+</body>
+</html>
